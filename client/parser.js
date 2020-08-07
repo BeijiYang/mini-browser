@@ -1,7 +1,20 @@
+const css = require("css"); // it's a css parser, 通过词法分析 语法分析，把 CSS => CSS AST
+
+// 词法分析 tokenization 状态机; 语法分析 用栈匹配的过程
 let currentToken = null;
 let currentTextNode = null;
+let currentAttribute = null;
+
 const EOF = Symbol('EOF'); // end of file token
 const stack = [{ type: 'document', children: [] }]; // a stack with the root node
+const rules = []; // to save CSS rules
+
+// gather all the CSS rules
+function addCSSRules(text) {
+  const ast = css.parse(text);
+  console.log(JSON.stringify(ast, null, 4));
+  rules.push(...ast.stylesheet.rules);
+}
 
 module.exports.parseHTML = function (html) {
   let state = data; // initial state             HTML 标准里把初始状态称为 data
@@ -10,7 +23,7 @@ module.exports.parseHTML = function (html) {
     // console.log(char, state.name)
     state = state(char);
   }
-  state = state(EOF); // ?
+  state = state(EOF);
   return stack[0];
 }
 
@@ -281,7 +294,7 @@ function afterAttributeName(char) {
 //............
 // the emit function takes the token generated from the state machine
 function emit(token) {
-  console.log(token);
+  // console.log(token);
   let top = stack[stack.length - 1];
 
   if (token.type === 'startTag') {
@@ -312,8 +325,15 @@ function emit(token) {
     currentTextNode = null;
   } else if (token.type === 'endTag') {
     if (top.tagName !== token.tagName) {
+      // 真实浏览器会做容错操作，此处省略
       throw new Error('Tag does not match');
     } else {
+      // CSS: 遇到 style 标签，执行添加 CSS 规则的操作。HTML 解析遇到 style 标签的结束标签时，就已经可以拿到 style 标签的文本子节点了。
+      if (top.tagName === 'style') {
+        // console.log('🍅')
+        // console.log(top)
+        addCSSRules(top.children[0].content); // 栈顶元素 top 的 children 是当前 element
+      }
       stack.pop();
     }
     currentTextNode = null;
