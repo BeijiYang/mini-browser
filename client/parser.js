@@ -46,14 +46,26 @@ function computeCSS(element) {
       // all selectors are matched
       matched = true;
     }
+    // add the CSS rules to the matched element
+    if (matched) {
+      // console.log(rule)
+      const { computedStyle } = element;
+      for (const declaration of rule.declarations) {
+        const { property, value } = declaration;
+        if (!computedStyle[property]) {
+          computedStyle[property] = {};
+        }
+        computedStyle[property] = value;
+      }
+    }
   }
-
+  console.log(element)
 }
 
 // 假设 selector 是简单选择器
 // 简单选择器：.class选择器  #id选择器  tagname选择器
 function match(element, selector) {
-  console.log(element)
+  // console.log(element)
   if (!selector || !element.attributes) return false;
 
   if (selector.charAt(0) === '#') { // id selector
