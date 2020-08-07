@@ -1,4 +1,5 @@
 const net = require('net');
+const parser = require('./parser');
 
 class Request {
   constructor({
@@ -248,7 +249,6 @@ class ChunkedBodyParser {
       case this.READING_CHUNK:
         this.content.push(char);
         this.length -= 1;
-        // this.length--;
         if (this.length === 0) {
           this.current = this.WAITING_BLANK_LINE;
         }
@@ -287,7 +287,9 @@ void async function () {
   });
 
   const response = await request.send();
-  console.log(response);
+  // console.log(response);
   // the format of response: status line \r 空行 \r headers \r body 
   // 其中 body：node 默认格式 chunked body: 16进制数字表长度 内容 直到最后是0
+  const dom = parser.parseHTML(response.body);
+  console.log(JSON.stringify(dom, null, 2))
 }()
