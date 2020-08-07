@@ -50,16 +50,33 @@ function computeCSS(element) {
     if (matched) {
       // console.log(rule)
       const { computedStyle } = element;
+      const specificity = getSpecificity(rule.selectors[0]);
+
       for (const declaration of rule.declarations) {
         const { property, value } = declaration;
         if (!computedStyle[property]) {
           computedStyle[property] = {};
         }
-        computedStyle[property] = value;
+        // computedStyle[property] = value;
+        // CSS specificity
+        if (!computedStyle[property].specificity) {
+          computedStyle[property] = {
+            value,
+            specificity,
+            ...computedStyle[property],
+          }
+        } else if (compareSpecificity(computedStyle[property].specificity, specificity) < 0) {
+          // current CSS selector have higher specificity than the previous, cover the previous rules
+          computedStyle[property] = {
+            value,
+            specificity,
+            ...computedStyle[property],
+          }
+        }
       }
     }
   }
-  console.log(element)
+  console.log(element.computedStyle)
 }
 
 // 假设 selector 是简单选择器
@@ -85,6 +102,36 @@ function match(element, selector) {
   } else { // type selector
     if (element.tagName === selector) return true;
   }
+}
+
+function getSpecificity(selector) {
+  const specificity = [0, 0, 0, 0];
+  // 同样，假设没有 selector combinator，都是由简单选择器构成的符合选择器
+  const selectors = selector.split(' ');
+
+  for (const item of selectors) {
+    if (item.charAt(0) === '#') {
+      specificity[1] += 1;
+    } else if (item.charAt(0) === '.') {
+      specificity[2] += 1;
+    } else {
+      specificity[3] += 1;
+    }
+  }
+  return specificity;
+}
+
+function compareSpecificity(sp1, sp2) {
+  if (sp1[0] - sp2[0]) {
+    return sp1[0] - sp2[0];
+  }
+  if (sp1[1] - sp2[1]) {
+    return sp1[1] - sp2[1];
+  }
+  if (sp1[2] - sp2[2]) {
+    return sp1[2] - sp2[2];
+  }
+  return sp1[3] - sp2[3];
 }
 
 module.exports.parseHTML = function (html) {
