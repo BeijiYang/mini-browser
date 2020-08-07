@@ -12,8 +12,67 @@ const rules = []; // to save CSS rules
 // gather all the CSS rules
 function addCSSRules(text) {
   const ast = css.parse(text);
-  console.log(JSON.stringify(ast, null, 4));
+  // console.log(JSON.stringify(ast, null, 4));
   rules.push(...ast.stylesheet.rules);
+}
+
+// 把CSS属性挂载到相匹配的DOM节点上去, 所以 CSS computing 是发生在 DOM 构建过程中的
+function computeCSS(element) {
+  // 栈的情况是不断变化的。获取当前的副本。关键：reverse。
+  // 匹配过程中，必须知道该元素所有的父元素，才能判断该元素是否和选择器匹配
+  // 所以从 stack 中获取当前元素所有的父元素
+  // reverse 原因：CSS selector 和元素匹配时，先从当前元素开始匹配。如，一个后代选择器 div #myid 前面的 div 不一定是哪个祖先元素，但后面的 #id 一定是当前元素。所以以 子 => 父 ，从内到外的顺序匹配。
+  const elements = stack.slice().reverse();
+
+  if (!element.computedStyle) {
+    element.computedStyle = {};
+  }
+
+  for (const rule of rules) {
+    const selectors = rule.selectors[0].split(' ').reverse(); // 见 ast 结构，注意 reverse 对应
+    // console.log(selectors) // [ '#myid', 'div', 'body' ]
+
+    if (!match(element, selectors[0])) continue;
+
+    let matched = false;
+
+    let selectorIndex = 1; // elements 是父元素们，所以从1开始
+    for (let elementIndex = 0; elementIndex < elements.length; elementIndex++) {
+      if (match(elements[elementIndex], selectors[selectorIndex])) {
+        selectorIndex++;
+      }
+    }
+    if (selectorIndex >= selectors.length) {
+      // all selectors are matched
+      matched = true;
+    }
+  }
+
+}
+
+// 假设 selector 是简单选择器
+// 简单选择器：.class选择器  #id选择器  tagname选择器
+function match(element, selector) {
+  console.log(element)
+  if (!selector || !element.attributes) return false;
+
+  if (selector.charAt(0) === '#') { // id selector
+    const attr = element.attributes.filter(
+      ({ name }) => (name === 'id')
+    )[0];
+    if (attr && attr.value === selector.replace('#', '')) {
+      return true;
+    }
+  } else if (selector.charAt(0) === '.') { // class selector
+    const attr = element.attributes.filter(
+      ({ name }) => (name === 'class')
+    )[0];
+    if (attr && attr.value === selector.replace(".", "")) {
+      return true;
+    }
+  } else { // type selector
+    if (element.tagName === selector) return true;
+  }
 }
 
 module.exports.parseHTML = function (html) {
@@ -314,6 +373,9 @@ function emit(token) {
         })
       }
     }
+
+    // CSS computing happens during the DOM tree construction 
+    computeCSS(element);
 
     top.children.push(element);
     // element.parent = top;
