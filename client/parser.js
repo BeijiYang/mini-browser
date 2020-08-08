@@ -1,4 +1,5 @@
 const css = require("css"); // it's a css parser, 通过词法分析 语法分析，把 CSS => CSS AST
+const layout = require("./layout.js");
 
 // 词法分析 tokenization 状态机; 语法分析 用栈匹配的过程
 let currentToken = null;
@@ -8,6 +9,17 @@ let currentAttribute = null;
 const EOF = Symbol('EOF'); // end of file token
 const stack = [{ type: 'document', children: [] }]; // a stack with the root node
 const rules = []; // to save CSS rules
+
+module.exports.parseHTML = function (html) {
+  let state = data; // initial state             HTML 标准里把初始状态称为 data
+
+  for (const char of html) {
+    // console.log(char, state.name)
+    state = state(char);
+  }
+  state = state(EOF);
+  return stack[0];
+}
 
 // gather all the CSS rules
 function addCSSRules(text) {
@@ -76,7 +88,7 @@ function computeCSS(element) {
       }
     }
   }
-  console.log(element.computedStyle)
+  // console.log(element.computedStyle)
 }
 
 // 假设 selector 是简单选择器
@@ -134,15 +146,67 @@ function compareSpecificity(sp1, sp2) {
   return sp1[3] - sp2[3];
 }
 
-module.exports.parseHTML = function (html) {
-  let state = data; // initial state             HTML 标准里把初始状态称为 data
+//............
+// the emit function takes the token generated from the state machine
+function emit(token) {
+  // console.log(token);
+  let top = stack[stack.length - 1];
 
-  for (const char of html) {
-    // console.log(char, state.name)
-    state = state(char);
+  if (token.type === 'startTag') {
+    // element is what you can see on the page
+    let element = {
+      type: 'element',
+      children: [],
+      attributes: [],
+      tagName: token.tagName
+    }
+    // console.log(token)
+    for (const prop in token) {
+      if (prop !== "type" && prop !== "tagName") {
+        element.attributes.push({
+          name: prop,
+          value: token[prop],
+        })
+      }
+    }
+
+    // CSS computing happens during the DOM tree construction 
+    computeCSS(element); // 把 CSS 规则挂载到相匹配的元素上
+
+    top.children.push(element);
+    // element.parent = top;
+
+    if (!token.isSelfClosing) {
+      stack.push(element);
+    }
+
+    currentTextNode = null;
+  } else if (token.type === 'endTag') {
+    if (top.tagName !== token.tagName) {
+      // 真实浏览器会做容错操作，此处省略
+      throw new Error('Tag does not match');
+    } else {
+      // CSS: 遇到 style 标签，执行添加 CSS 规则的操作。HTML 解析遇到 style 标签的结束标签时，就已经可以拿到 style 标签的文本子节点了。
+      if (top.tagName === 'style') {
+        // console.log('🍅')
+        // console.log(top)
+        addCSSRules(top.children[0].content); // 栈顶元素 top 是 <style> 标签，其 children 是 text node, 是 CSS rules 字符串
+      }
+      layout(top); // 元素的 flex 布局需要知道其子元素的情况。此时，标签关闭，如<div>...</div>，其子元素的情况已经得知了。
+      // 自封闭标签,如 <img /> 没有入栈，它上面的CSS规则是怎么计算的？？
+      stack.pop();
+    }
+    currentTextNode = null;
+  } else if (token.type === 'text') {
+    if (currentTextNode === null) {
+      currentTextNode = {
+        type: "text",
+        content: "",
+      }
+      top.children.push(currentTextNode);
+    }
+    currentTextNode.content += token.content;
   }
-  state = state(EOF);
-  return stack[0];
 }
 
 // There three kinds of HTML tags: opening tag <div>, closing tag </div>, self-colsing tag <div/>
@@ -408,65 +472,3 @@ function afterAttributeName(char) {
     return attributeName(char);
   }
 }
-
-//............
-// the emit function takes the token generated from the state machine
-function emit(token) {
-  // console.log(token);
-  let top = stack[stack.length - 1];
-
-  if (token.type === 'startTag') {
-    // element is what you can see on the page
-    let element = {
-      type: 'element',
-      children: [],
-      attributes: [],
-      tagName: token.tagName
-    }
-    // console.log(token)
-    for (const prop in token) {
-      if (prop !== "type" && prop !== "tagName") {
-        element.attributes.push({
-          name: prop,
-          value: token[prop],
-        })
-      }
-    }
-
-    // CSS computing happens during the DOM tree construction 
-    computeCSS(element);
-
-    top.children.push(element);
-    // element.parent = top;
-
-    if (!token.isSelfClosing) {
-      stack.push(element);
-    }
-
-    currentTextNode = null;
-  } else if (token.type === 'endTag') {
-    if (top.tagName !== token.tagName) {
-      // 真实浏览器会做容错操作，此处省略
-      throw new Error('Tag does not match');
-    } else {
-      // CSS: 遇到 style 标签，执行添加 CSS 规则的操作。HTML 解析遇到 style 标签的结束标签时，就已经可以拿到 style 标签的文本子节点了。
-      if (top.tagName === 'style') {
-        // console.log('🍅')
-        // console.log(top)
-        addCSSRules(top.children[0].content); // 栈顶元素 top 的 children 是当前 element
-      }
-      stack.pop();
-    }
-    currentTextNode = null;
-  } else if (token.type === 'text') {
-    if (currentTextNode === null) {
-      currentTextNode = {
-        type: "text",
-        content: "",
-      }
-      top.children.push(currentTextNode);
-    }
-    currentTextNode.content += token.content;
-  }
-}
-

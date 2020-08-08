@@ -291,5 +291,5 @@ void async function () {
   // the format of response: status line \r 空行 \r headers \r body 
   // 其中 body：node 默认格式 chunked body: 16进制数字表长度 内容 直到最后是0
   const dom = parser.parseHTML(response.body);
-  console.log(JSON.stringify(dom, null, 2))
+  // console.log(JSON.stringify(dom, null, 2))
 }()
