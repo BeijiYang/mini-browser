@@ -1,5 +1,7 @@
 const net = require('net');
+const images = require("images");
 const parser = require('./parser');
+const render = require("./render");
 
 class Request {
   constructor({
@@ -292,4 +294,12 @@ void async function () {
   // 其中 body：node 默认格式 chunked body: 16进制数字表长度 内容 直到最后是0
   const dom = parser.parseHTML(response.body);
   // console.log(JSON.stringify(dom, null, 2))
+  // 绘制
+  const viewport = images(800, 600); // 视口
+  render(viewport, dom.children[0].children[3].children[1].children[3]); // 传入视口 和 想要绘制的dom (class="c1" 的 div)
+  console.log('------------------------------')
+  console.log(JSON.stringify(dom.children[0].children[3].children[1].children[3], null, 2))
+
+
+  viewport.save('viewport.jpg');
 }()
