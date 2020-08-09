@@ -1,29 +1,28 @@
-// pre-processing
+// pre - processing
 function getStyle(element) {
-  if (!element.styleToUse) element.styleToUse = {};
+  if (!element.style) element.style = {};
 
   const { computedStyle } = element;
 
   for (const prop in computedStyle) {
-    element.computedStyle[prop] = computedStyle[prop].value;
+    element.style[prop] = computedStyle[prop].value;
 
     // 把 px 单位的转为数字
-    if (element.computedStyle[prop].toString().match(/px$/)) {
-      element.computedStyle[prop] = parseInt(element.styleToUse[prop]);
+    if (element.style[prop].toString().match(/px$/)) {
+      element.style[prop] = parseInt(element.style[prop]);
     }
     // 把数字字符串转换为数字类型
-    if (element.computedStyle[prop].toString().match(/^[0-9\.]+$/)) {
-      element.computedStyle[prop] = parseInt(element.styleToUse[prop]);
+    if (element.style[prop].toString().match(/^[0-9\.]+$/)) {
+      element.style[prop] = parseInt(element.style[prop]);
     }
   }
-  return element.computedStyle;
+  return element.style;
 }
 
 function layout(element) {
   if (!element.computedStyle) return;
 
   const elementStyle = getStyle(element);
-  // console.log("🔥", elementStyle)
   // 仅以 flex 布局为例实现
   if (elementStyle.display !== 'flex') return;
 
@@ -128,7 +127,7 @@ function layout(element) {
     // auto sizing
     elementStyle[mainSize] = 0;
     for (let i = 0; i < elementItems.length; i++) {
-      // const item = elementItems[i];
+      const itemStyle = getStyle(elementItems[i]);
       if (itemStyle[mainSize] !== null || itemStyle[mainSize] !== (void 0)) {
         elementStyle[mainSize] = elementStyle[mainSize] + itemStyle[mainSize];
       }
@@ -146,7 +145,9 @@ function layout(element) {
 
   // 循环所有的 flex items
   for (let i = 0; i < elementItems.length; i++) {
-    const itemStyle = getStyle(elementItems[i]);
+    const item = elementItems[i];
+    const itemStyle = getStyle(item);
+    // console.log("🔥", elementStyle)
     // 为单个元素的 空的 主轴尺寸 设置默认值 0 
     if (itemStyle[mainSize] === null) {
       itemStyle[mainSize] = 0;
@@ -267,14 +268,14 @@ function layout(element) {
         }
         if (style.justifyContent === 'space-between') {
           currentMain = mainBase;
-          gap = mainSpace / (items.length - 1) * mainSign; // 每个元素直接有间隔，总共有 items.length - 1 个间隔
+          gap = mainSpace / (elementItems.length - 1) * mainSign; // 每个元素直接有间隔，总共有 elementItems.length - 1 个间隔
         }
         if (style.justifyContent === 'space-around') {
           currentMain = gap / 2 + mainBase;
-          gap = mainSpace / items.length * mainSign; // 每个元素直接有间隔，总共有 items.length 个间隔
+          gap = mainSpace / elementItems.length * mainSign; // 每个元素直接有间隔，总共有 elementItems.length 个间隔
         }
         if (style.justifyContent === 'space-evenly') {
-          gap = mainSpace / (items.length + 1) * mainSign
+          gap = mainSpace / (elementItems.length + 1) * mainSign
           currentMain = gap + mainBase
         }
         // 所有的元素都是 根据 mainstart 和  mainsize 算 mainend
@@ -288,6 +289,102 @@ function layout(element) {
     })
   }
 
+  // 计算交叉轴位置的代码
+  if (!style[crossSize]) { // 若父元素没有 crossSize， crossSpace 永远为零
+    crossSpace = 0;
+    elementStyle[crossSize] = 0;
+    // 还需要把撑开的高度加上去
+    for (let i = 0; i < flexLines.length; i++) {
+      elementStyle[crossSize] = elementStyle[crossSize] + flexLines[i].crossSpace;
+    }
+  } else { // 如果有行高
+    // 计算出最终的crossSpace 为crossSpace 减去每行最大crossSpace 剩余空间，用作分配
+    crossSpace = style[crossSize];
+    for (let i = 0; i < flexLines.length; i++) {
+      crossSpace -= flexLines[i].crossSpace; // 剩余的行高
+    }
+  }
+
+  // wrap-reverse 从尾到头 影响 crossBase
+  if (style.flexWrap === 'wrap-reverse') {
+    crossBase = style[crossSize];
+  } else {
+    crossBase = 0;
+  }
+
+  // 每行的 size 行高 等于 总体的（多行）交叉轴尺寸 除以 行数
+  let lineSize = style[crossSize] / flexLines.length;
+  let gap;
+  // 根据 alignContent 的属性分配行高，矫正 crossSpace
+  if (style.alignContent === 'flex-start') {
+    crossBase += 0; // crossBase 增量为零
+    gap = 0;
+  }
+  if (style.alignContent === 'flex-end') {
+    crossBase += crossSpace * crossSign; // 增量把 crossspace 放在尾巴上
+    gap = 0;
+  }
+  if (style.alignContent === 'center') {
+    crossBase += crossSpace * crossSign / 2; // 剩余空间除以二
+    gap = 0;
+  }
+  if (style.alignContent === 'space-between') {
+    crossBase += 0;
+    gap = crossSpace / (flexLines.length - 1);
+  }
+  if (style.alignContent === 'space-around') {
+    crossBase += crossSign * gap / 2;
+    gap = crossSpace / (flexLines.length);
+  }
+  if (style.alignContent === 'stretch') {
+    crossBase += 0;
+    gap = 0;
+  }
+
+  flexLines.forEach(flexLine => {
+    let lineCrossSize = style.alignContent === 'stretch'
+      ? flexLine.crossSpace + crossSpace / flexLines.length // 给剩余空间做分配
+      : flexLine.crossSpace; // 填满
+    // 计算每个元素的交叉轴尺寸
+    for (let i = 0; i < flexLine.length; i++) {
+      // const item = flexLine[i];
+      let itemStyle = getStyle(flexLine[i]);
+      // console.log('🌲', itemStyle)
+      let align = itemStyle.alignSelf || style.alignItems; // 元素本身的 alignSelf  优先于 父元素的 align Items
+
+      // 未指定交叉轴尺寸
+      if (itemStyle[crossSize] === null) {
+        itemStyle[crossSize] = align === 'stretch'
+          ? lineCrossSize // 满属性
+          : 0;
+      }
+
+      if (align === 'flex-start') {
+        itemStyle[crossStart] = crossBase;
+        itemStyle[crossEnd] = itemStyle[crossStart] + crossSign * itemStyle[crossSize];
+      }
+      if (align === 'flex-end') {
+        itemStyle[crossStart] = crossBase + crossSign * lineCrossSize;
+        itemStyle[crossEnd] = itemStyle[crossEnd] - crossSign * itemStyle[crossSize];
+      }
+      if (align === 'center') {
+        itemStyle[crossStart] = crossBase + crossSign * lineCrossSize[crossSize] / 2;
+        itemStyle[crossEnd] = itemStyle[crossStart] + crossSign * itemStyle[crossSize];
+      }
+      if (align === 'stretch') {
+        console.log('🌲', itemStyle)
+        itemStyle[crossStart] = crossBase;
+        // itemStyle[crossEnd] = crossBase + crossSign * ((itemStyle[crossSize] !== null && itemStyle[cross])); // 又他妈不完整
+        itemStyle[crossEnd] = crossBase + crossSign * ((itemStyle[crossSize] !== null && itemStyle[crossSize] !== (void 0)) ? itemStyle[crossSize] : lineCrossSize)
+        console.log('\n', '✨', lineCrossSize, '\n', itemStyle)
+        itemStyle[crossSize] = crossSign * (itemStyle[crossEnd] - itemStyle[crossStart]);
+        // console.log('🌲', crossSize)
+        // console.log(itemStyle[crossSize], crossSign, itemStyle[crossEnd], itemStyle[crossStart])
+        // console.log(itemStyle)
+      }
+    }
+    crossBase += crossSign * (lineCrossSize + gap);
+  })
 }
 
 module.exports = layout;
