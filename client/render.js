@@ -1,9 +1,9 @@
 const images = require("images");
 
 function render(viewport, element) {
-  if (element.style) { // 检测元素是否有样式
-    let img = images(element.style.width, element.style.height); // 根据其宽高创建新的 img 对象
-    // 简化，只处理背景色
+  if (element.style) {
+    let img = images(element.style.width, element.style.height);
+    // to simplify, only deal with background color
     if (element.style["background-color"]) {
       let color = element.style["background-color"] || "rgb(0, 0, 0)";
       color.match(/rgb\((\d+),(\d+),(\d+)\)/);
