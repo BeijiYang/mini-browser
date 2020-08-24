@@ -21,7 +21,6 @@ class Request {
       this.headers['Content-Type'] = 'application/x-www-form-urlencoded';
     }
     // encode the http body. These are four mosted used format: application/x-www-form-urlencoded multipart/form-data application/json text/xml
-    // application/x-www-form-urlencoded 提交的数据按照 key1=val1&key2=val2 的方式进行编码，key 和 val 都进行了 URL 转码
     // encodeURIComponent: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/encodeURIComponent
     if (this.headers['Content-Type'] === 'application/json') {
       this.bodyText = JSON.stringify(this.body);
@@ -70,7 +69,6 @@ class Request {
   }
 
   toString() {
-    // request line \r headers \r 空行\r body
     // http messages https://developer.mozilla.org/en-US/docs/Web/HTTP/Messages
     return `${this.method} ${this.path} HTTP/1.1\r
 ${Object.keys(this.headers).map(key => `${key}: ${this.headers[key]}`).join('\r\n')}\r
